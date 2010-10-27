@@ -70,8 +70,8 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	struct sockaddr new;
 	struct sockaddr_in *sa4;
 	struct sockaddr_in6 *sa6;
-	void *p;
-	unsigned short *pport;
+	void *p = NULL;
+	unsigned short *pport = NULL;
 
 	init();
 
