@@ -10,6 +10,8 @@ Description:	Force binding on a specific IP and/or port.
 		and without the possibility to configure address or port to
 		bind to.
 
+License:	GPLv3
+
 How it works:	force_bind is a shared object that is loaded with LD_PRELOAD and hooks 'bind' function.
 		Forcing an IP/port to bind to is done with environments variables.
 
