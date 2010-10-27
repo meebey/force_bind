@@ -13,4 +13,10 @@ echo "Released ${VER} of ${PRJ}." >> ${file}
 echo "<br />" >> ${file}
 echo "Changelog (last release): <a href=\"http://kernel.embedromix.ro/us/${PRJ}/Changelog-last\" target=\"_new\">here</a>." >> ${file}
 
-cp Changelog-last Changelog README INSTALL LICENSE TODO "${dir}/us/${PRJ}/"
+
+for f in Changelog-last Changelog README INSTALL LICENSE TODO; do
+	if [ -r "${f}" ]; then
+		cp "${f}" "${dir}/us/${PRJ}/"
+	fi
+done
+
