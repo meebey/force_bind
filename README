@@ -6,7 +6,7 @@ Start date:	2010-10-26
 
 Description:	Force binding on a specific IP and/or port.
 		Works with both IPv4 and IPv6.
-		It is usefull if you have a binary application without sources
+		It is useful if you have a binary application without sources
 		and without the possibility to configure address or port to
 		bind to.
 
