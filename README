@@ -6,6 +6,9 @@ Start date:	2010-10-26
 
 Description:	Force binding on a specific IP and/or port.
 		Works with both IPv4 and IPv6.
+		It is usefull if you have a binary application without sources
+		and without the possibility to configure address or port to
+		bind to.
 
 How it works:	force_bind is a shared object that is loaded with LD_PRELOAD and hooks 'bind' function.
 		Forcing an IP/port to bind to is done with environments variables.
