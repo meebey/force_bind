@@ -20,3 +20,6 @@ for f in Changelog-last Changelog README INSTALL LICENSE TODO; do
 	fi
 done
 
+# Store lastest version and revision
+echo ${VER} > "${dir}/us/${PRJ}/LATEST_VER"
+echo ${REV} > "${dir}/us/${PRJ}/LATEST_REV"
