@@ -11,8 +11,8 @@ How it works:	force_bind is a shared object that is loaded with LD_PRELOAD and h
 		Forcing an IP/port to bind to is done with environments variables.
 
 Examples:
-		1. FORCE_BIND_ADDRESS=127.0.0.1 FORCE_BIND_PORT=33 your_program # force binding to 127.0.0.1/33.
-		2. FORCE_BIND_ADDRESS=127.0.0.2 your_program # force binding to 127.0.0.2
+		1. FORCE_BIND_ADDRESS=127.0.0.1 FORCE_BIND_PORT=33 LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so your_program # force binding to 127.0.0.1/33.
+		2. FORCE_BIND_ADDRESS=127.0.0.2 LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so your_program # force binding to 127.0.0.2
 
 Installation:
 		- ./configure
