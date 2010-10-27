@@ -18,7 +18,5 @@ clean:
 	@rm -f force_bind.so.* test_bind *.a *.o *.so* $(PRJ)-*.rpm $(PRJ)-*-*-*.tgz $(PRJ)-*.tar.gz
 
 install:	all
-	@mkdir -p $(I_USR_BIN)
-	cp -vd force_bind $(I_USR_BIN)
 	@mkdir -p $(I_USR_LIB)
 	cp -vd force_bind.so $(I_USR_LIB)
