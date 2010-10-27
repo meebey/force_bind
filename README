@@ -1,0 +1,20 @@
+Name:		force_bind
+
+Author:		Catali(ux) M. BOIE - catab at embedromix dot ro
+
+Start date:	2010-10-26
+
+Description:	Force binding on a specific IP and/or port.
+		Works with both IPv4 and IPv6.
+
+How it works:	force_bind is a shared object that is loaded with LD_PRELOAD and hooks 'bind' function.
+		Forcing an IP/port to bind to is done with environments variables.
+
+Examples:
+		1. FORCE_BIND_ADDRESS=127.0.0.1 FORCE_BIND_PORT=33 your_program # force binding to 127.0.0.1/33.
+		2. FORCE_BIND_ADDRESS=127.0.0.2 your_program # force binding to 127.0.0.2
+
+Installation:
+		- ./configure
+		- make
+		- make install

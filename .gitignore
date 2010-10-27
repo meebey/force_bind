@@ -1,0 +1,5 @@
+/Makefile
+Changelog
+*.so*
+*.spec
+test_bind

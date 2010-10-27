@@ -1,0 +1,16 @@
+#!/bin/bash
+
+dir="/BIG1T/sync1/www/umbrella/kernel"
+file="${dir}/news/raw/`date +%Y-%m-%d`-${PRJ}.news"
+>${file}
+
+echo "${PRJ} ${VER} is out!" >> ${file}
+echo "/us/" >> ${file}
+echo "linux release userspace" >> ${file}
+echo "Released ${VER} of ${PRJ}." >> ${file}
+
+# Changelog
+echo "<br />" >> ${file}
+echo "Changelog (last release): <a href=\"http://kernel.embedromix.ro/us/${PRJ}/Changelog-last\" target=\"_new\">here</a>." >> ${file}
+
+cp Changelog-last Changelog README INSTALL LICENSE TODO "${dir}/us/${PRJ}/"

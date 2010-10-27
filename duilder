@@ -1,0 +1,527 @@
+#!/bin/bash
+
+set -e
+
+function duilder_final()
+{
+	PRJ="${1}"
+	VER="${2}"
+	RELEASE_SCRIPT="${3}"
+
+	# Run release script
+	if [ ! -z "${RELEASE_SCRIPT}" -a -x "${RELEASE_SCRIPT}" ]; then
+		echo "Running ${RELEASE_SCRIPT}..."
+		${RELEASE_SCRIPT}
+	fi
+}
+
+function duilder_docs()
+{
+	PRJ="${1}"
+	VER="${2}"
+	EXPORT_PATH="${3}"
+
+	if [ ! -d "${EXPORT_PATH}" ]; then
+		echo "WARN: ${EXPORT_PATH} does not exists. Skipping..."
+		return
+	fi
+
+	echo "Copying docs to [${EXPORT_PATH}]..."
+	for f in README License LICENSE Changelog Changelog-last TODO FAQ INSTALL; do
+		if [ -r "${f}" ]; then
+			cp -vp "${f}" "${EXPORT_PATH}/"
+		fi
+	done
+
+	if [ -d "screenshot" ]; then
+		echo "Copying screenshots..."
+		mkdir -p "${EXPORT_PATH}"
+		cp -vp screenshot/* "${EXPORT_PATH}/"
+	fi
+}
+
+function duilder_git()
+{
+	PRJ="${1}"
+	GIT_DEST="${2}"
+	EXPORT_GIT="${3}"
+	GIT_CHANGELOG="${4}"
+	GIT_PUSH="${5}"
+
+	if [ ! -x /usr/bin/git ]; then
+		echo "Warning: Git not found!"
+		exit 0
+	fi
+
+	if [ ! -d .git ]; then
+		echo "Warning: I cannot find .git directory!"
+		exit 0
+	fi
+
+	if [ "${EXPORT_GIT}" = "1" ]; then
+		echo "Generate GIT tree for HTTP transport..."
+		if [ ! -d "${GIT_DEST}/${PRJ}.git" ]; then
+			git clone --bare . "${GIT_DEST}/${PRJ}.git"
+
+			# Activate post-update hook
+			cp "${GIT_DEST}/${PRJ}.git/hooks/post-update.sample" \
+				"${GIT_DEST}/${PRJ}.git/hooks/post-update"
+			chmod a+x "${GIT_DEST}/${PRJ}.git/hooks/post-update"
+
+			# add project name and description
+			echo "${PRJ}" > "${GIT_DEST}/${PRJ}.git/description"
+
+			# allow export by git daemon?
+			#touch "${GIT_DEST}/${PRJ}.git/git-daemon-export-ok
+		else
+			# --force?
+			echo "Running git push -v --all \"${GIT_DEST}/${PRJ}.git\"..."
+			git push -v --all "${GIT_DEST}/${PRJ}.git"
+			echo "Running git push -v --tags \"${GIT_DEST}/${PRJ}.git\"..."
+			git push -v --tags "${GIT_DEST}/${PRJ}.git"
+		fi
+		(cd "${GIT_DEST}/${PRJ}.git" && git update-server-info)
+	fi
+
+	if [ "${GIT_PUSH}" = "1" ]; then
+		echo "[*] Git push..."
+		git push -v --all
+	fi
+
+	if [ "${GIT_CHANGELOG}" = "1" ]; then
+		echo "[*] Generating Changelog from git..."
+		echo -n > Changelog
+
+		# get the list of tags
+		i=0
+		number_of_tags=0
+		for tag in `git tag -l`; do
+			if [ "${tag:0:1}" != "v" ]; then
+				# skip other kind of tags beside versions
+				continue
+			fi
+
+			tags[${i}]=${tag}
+			tags_commit[${i}]=`git show-ref ${tag} | cut -d' ' -f1`
+			number_of_tags=$[${number_of_tags}+1]
+
+			i=$[${i}+1]
+		done
+
+		# get the list of commits, test if is a tag and do the diff
+		prev=""
+		add=""
+		first=1
+		git log --pretty=oneline | cut -f1 | \
+		while read commit junk; do
+			# test if it is a tag
+			tag=""
+			i=0
+			while [ "${i}" -lt "${number_of_tags}" ]; do
+				if [ "${commit}" = "${tags_commit[${i}]}" ]; then
+					tag="${tags[${i}]}"
+					break
+				fi
+
+				i=$[${i}+1]
+			done
+
+			if [ -z "${tag}" ]; then
+				continue
+			fi
+
+			if [ ! -z "${prev}" ]; then
+				echo "[*] Generating Changelog from ${tag} -> ${prev}..."
+				echo -en "${add}" >> Changelog
+				add="\n"
+				echo "[${tag} -> ${prev}]" >> Changelog
+				git shortlog ${tag}..${prev} | \
+					(IFS=""
+					while read line; do
+						echo "	${line}"
+					done) \
+					>> Changelog
+
+				if [ "${first}" = "1" ]; then
+					echo "[*] Generating Changelog-last..."
+					cp Changelog Changelog-last
+					first=0
+				fi
+			fi
+			prev=${tag}
+		done
+	fi
+}
+
+function duilder_srpm()
+{
+	PRJ="${1}"
+	VER="${2}"
+	EXPORT_PATH="${3}"
+	BUILD_SRPM="${4}"
+	SRPM_DEST="${5}"
+	SRPM_POST_RUN="${6}"
+
+	P="${PRJ}-${VER}"
+
+	if [ ! -d "${EXPORT_PATH}" ]; then
+		echo "WARN: ${EXPORT_PATH} does not exists. Skipping..."
+		return
+	fi
+
+	if [ "${BUILD_SRPM}" != "1" ]; then
+		exit 0
+	fi
+
+	echo "Building SRPM..."
+	rpmbuild -ts "${P}.tar.gz"
+
+	PKG="${RPMBUILD}/SRPMS/${P}-1.src.rpm"
+
+	# Run a rpmlint on it
+	if [ -x /usr/bin/rpmlint ]; then
+		echo "[*] RPMlinting..."
+		rpmlint -iv "${PKG}" > rpmlint.out
+	fi
+
+	if [ ! -z "${SRPM_DEST}" ]; then
+		echo "Copying [${PKG}] to [${SRPM_DEST}]..."
+		cp -vp "${PKG}" "${SRPM_DEST}/"
+	fi
+
+	echo "Copying to export dir [${EXPORT_PATH}]..."
+	mkdir -p "${EXPORT_PATH}"
+	cp -vp "${PKG}" "${EXPORT_PATH}/"
+
+	if [ -x "${SRPM_POST_RUN}" ]; then
+		echo "Running post SRPM build script [${SRPM_POST_RUN}]..."
+		${SRPM_POST_RUN} "${PKG}"
+	fi
+}
+
+function duilder_tar()
+{
+	PRJ="${1}"
+	VER="${2}"
+	EXPORT_PATH="${3}"
+	EXCLUDE="${4}"
+
+	P="${PRJ}-${VER}"
+
+	if [ ! -d "${EXPORT_PATH}" ]; then
+		echo "WARN: ${EXPORT_PATH} does not exists. Skipping..."
+		return
+	fi
+
+	echo "Generating tarball [${P}.tar.gz]..."
+	ADD_EXCLUDE=""
+	if [ ! -z "${EXCLUDE}" ]; then
+		ADD_EXCLUDE="--exclude-from ${P}/${EXCLUDE}"
+	fi
+
+	(cd .. \
+	&& rm -rf "${P}" \
+	&& cp -a --link "${PRJ}" "${P}" \
+	&& tar czf "${PRJ}/${P}.tar.gz" \
+		--exclude-vcs \
+		--exclude ${P}/Makefile \
+		${ADD_EXCLUDE} \
+		"${P}" \
+	&& rm -rf "${P}"
+	)
+
+	echo "Copying source to ${EXPORT_PATH}/..."
+	mkdir -p "${EXPORT_PATH}"
+	cp -vp "${P}.tar.gz" "${EXPORT_PATH}/"
+}
+
+####################################################################
+
+# Variables
+if [ -d "${HOME}/rpmbuild" ]; then
+	RPMBUILD="${HOME}/rpmbuild"
+else
+	RPMBUILD="/usr/src/redhat"
+fi
+
+
+# Multiplexer
+if [ "${1}" = "docs" ]; then
+	shift
+	duilder_docs "$@"
+	exit $?
+fi
+
+if [ "${1}" = "tar" ]; then
+	shift
+	duilder_tar "$@"
+	exit $?
+fi
+
+if [ "${1}" = "git" ]; then
+	shift
+	duilder_git "$@"
+	exit $?
+fi
+
+if [ "${1}" = "srpm" ]; then
+	shift
+	duilder_srpm "$@"
+	exit $?
+fi
+
+if [ "${1}" = "final" ]; then
+	shift
+	duilder_final "$@"
+	exit $?
+fi
+
+if [ ! -r duilder.conf ]; then
+	echo "You must build a duilder.conf file!"
+	exit 1
+fi
+
+
+###### Main stuff
+
+source ${PWD}/duilder.conf
+
+# fixes
+if [ -z "${GIT_DEST}" ]; then
+	GIT_DEST="${EXPORT_PATH}"
+fi
+
+# export variables - just in case a script cares
+export PRJ VER REV EXPORT_PATH EXPORT_GIT GIT_PUSH GIT_DEST SRPMS_DEST LICENSE
+
+if [ -z "${PRJ}" ]; then
+	echo "ERROR: PRJ= parameter is missing."
+	exit 1
+fi
+
+if [ -z "${VER}" ]; then
+	echo "ERROR: PRJ= parameter is missing."
+	exit 1
+fi
+
+if [ -z "${REV}" ]; then
+	echo "ERROR: REV= parameter is missing."
+	exit 1
+fi
+
+echo
+echo "Duilder builder script"
+echo "Copyright Catalin(ux) M BOIE"
+echo
+echo "PRJ=${PRJ}, VER=${VER}, REV=${REV}"
+echo "System: `uname -a`"
+
+ETC="/etc"
+BIN="/bin"
+USR_BIN="/usr/bin"
+USR_SBIN="/usr/sbin"
+USR_INCLUDE="/usr/include"
+USR_LIB="/usr/lib"
+USR_SHARE_DOC="/usr/share/doc/${PRJ}-${VER}"
+SBIN="/usr/sbin"
+VAR="/var"
+VAR_LOG="/var/log/${PRJ}"
+
+while [ "${1}" != "" ]; do
+	VAR="`echo ${1} | cut -d'=' -f1`"
+	VAL="`echo ${1} | cut -d'=' -f2`"
+	case ${VAR} in
+		--sysconfdir)
+			ETC="${VAL}"
+			;;
+		--bindir)
+			USR_BIN="${VAL}"
+			;;
+		--sbindir)
+			USR_SBIN="${VAL}"
+			;;
+		--includedir)
+			USR_INCLUDE="${VAL}"
+			;;
+		--libdir)
+			USR_LIB="${VAL}"
+			;;
+		--localstatedir)
+			VAR="${VAL}"
+			;;
+	esac
+	shift
+done
+
+# Truncate future sed file
+> tmp.sed
+
+DB_SUPPORT=0
+
+echo -n "Searching for PostgreSQL..."
+set +e
+PG_VERSION="`pg_config --version 2>/dev/null`"
+set -e
+if [ -z "${PG_VERSION}" ]; then
+	echo " not found."
+	PG_FOUND=0
+else
+	echo " found version ${PG_VERSION}."
+	PG_FOUND=1
+	PG_INC="-I`pg_config --includedir`"
+	PG_LIB="-L`pg_config --libdir` -lpq"
+
+	echo "s#@PG_VERSION@#${PG_VERSION}#g" >> tmp.sed
+	echo "s#@PG_INC@#${PG_INC}#g" >> tmp.sed
+	echo "s#@PG_LIB@#${PG_LIB}#g" >> tmp.sed
+
+	DB_SUPPORT=1
+	echo "s#@DB_SUPPORT@#${DB_SUPPORT}#g" >> tmp.sed
+fi
+echo "s#@PG_FOUND@#${PG_FOUND}#g" >> tmp.sed
+
+
+echo -n "Searching for MySQL..."
+set +e
+MYSQL_VERSION="`mysql_config --version 2>/dev/null`"
+set -e
+if [ -z "${MYSQL_VERSION}" ]; then
+	echo " not found."
+	MYSQL_FOUND=0
+else
+	echo " found version ${MYSQL_VERSION}."
+	MYSQL_FOUND=1
+	MYSQL_INC="`mysql_config --include`"
+	MYSQL_LIB="`mysql_config --libs`"
+
+	echo "s#@MYSQL_VERSION@#${MYSQL_VERSION}#g" >> tmp.sed
+	echo "s#@MYSQL_INC@#${MYSQL_INC}#g" >> tmp.sed
+	echo "s#@MYSQL_LIB@#${MYSQL_LIB}#g" >> tmp.sed
+
+	DB_SUPPORT=1
+	echo "s#@DB_SUPPORT@#${DB_SUPPORT}#g" >> tmp.sed
+fi
+echo "s#@MYSQL_FOUND@#${MYSQL_FOUND}#g" >> tmp.sed
+
+echo -n "Searching for poll..."
+set +e
+echo -e "#include <poll.h> \n int main(void) { return poll(0, 0, 0); }" | gcc -x c -pipe - -o /dev/null 2>/dev/null
+E="${?}"
+set -e
+if [ "${E}" != "0" ]; then
+	echo " not found."
+	echo "s#@POLL_FOUND@#0#g" >> tmp.sed
+else
+	echo " found."
+	echo "s#@POLL_FOUND@#1#g" >> tmp.sed
+fi
+
+echo -n "Searching for epoll..."
+set +e
+echo -e "#include <sys/epoll.h> \n int main(void) { return epoll_create(64); }" | gcc -x c -pipe - -o /dev/null 2>/dev/null
+E="${?}"
+set -e
+if [ "${E}" != "0" ]; then
+	echo " not found."
+	echo "s#@EPOLL_FOUND@#0#g" >> tmp.sed
+else
+	echo " found."
+	echo "s#@EPOLL_FOUND@#1#g" >> tmp.sed
+fi
+
+# generic stuff
+echo "s#@PRJ@#${PRJ}#g" >> tmp.sed
+echo "s#@VER@#${VER}#g" >> tmp.sed
+echo "s#@REV@#${REV}#g" >> tmp.sed
+echo "s#@DESCRIPTION@#${DESCRIPTION}#g" >> tmp.sed
+
+echo "s#@ETC@#${ETC}#g" >> tmp.sed
+echo "s#@BIN@#${BIN}#g" >> tmp.sed
+echo "s#@USR_BIN@#${USR_BIN}#g" >> tmp.sed
+echo "s#@SBIN@#${SBIN}#g" >> tmp.sed
+echo "s#@USR_SBIN@#${USR_SBIN}#g" >> tmp.sed
+echo "s#@VAR@#${VAR}#g" >> tmp.sed
+echo "s#@VAR_LOG@#${VAR_LOG}#g" >> tmp.sed
+echo "s#@USR_INCLUDE@#${USR_INCLUDE}#g" >> tmp.sed
+echo "s#@USR_INC@#${USR_INCLUDE}#g" >> tmp.sed
+echo "s#@USR_LIB@#${USR_LIB}#g" >> tmp.sed
+echo "s#@USR_SHARE_DOC@#${USR_SHARE_DOC}#g" >> tmp.sed
+# Export stuff
+echo "s#@EXPORT_PATH@#${EXPORT_PATH}#g" >> tmp.sed
+
+
+
+if [ -r Makefile.in ]; then
+	echo "Building Makefile..."
+	echo -n > Makefile
+	echo "# duilder header starts #" >> Makefile
+	echo "export PRJ := ${PRJ}" >> Makefile
+	echo "export VER := ${VER}" >> Makefile
+	echo "export REV := ${REV}" >> Makefile
+	echo "export DESTDIR" >> Makefile
+	echo >> Makefile
+	echo "export I_ETC := \$(DESTDIR)${ETC}" >> Makefile
+	echo "export I_BIN := \$(DESTDIR)${BIN}" >> Makefile
+	echo "export I_SBIN := \$(DESTDIR)${SBIN}" >> Makefile
+	echo "export I_USR_BIN := \$(DESTDIR)${USR_BIN}" >> Makefile
+	echo "export I_USR_SBIN := \$(DESTDIR)${USR_SBIN}" >> Makefile
+	echo "export I_USR_INCLUDE := \$(DESTDIR)${USR_INCLUDE}" >> Makefile
+	echo "export I_USR_INC := \$(DESTDIR)${USR_INCLUDE}" >> Makefile
+	echo "export I_USR_SHARE_DOC := \$(DESTDIR)${USR_SHARE_DOC}" >> Makefile
+	echo "export I_USR_LIB := \$(DESTDIR)${USR_LIB}" >> Makefile
+	echo "export I_LIB := \$(DESTDIR)${USR_LIB}" >> Makefile
+	echo "export I_VAR := \$(DESTDIR)${VAR}" >> Makefile
+	echo "export I_VAR_LOG := \$(DESTDIR)${VAR_LOG}" >> Makefile
+	echo >> Makefile
+	echo "# DB stuff" >> Makefile
+	echo "export DB_SUPPORT := ${DB_SUPPORT}" >> Makefile
+	echo "# PG" >> Makefile
+	echo "export PG_FOUND := ${PG_FOUND}" >> Makefile
+	echo "export PG_INC := ${PG_INC}" >> Makefile
+	echo "export PG_LIB := ${PG_LIB}" >> Makefile
+	echo "# MySQL" >> Makefile
+	echo "export MYSQL_FOUND := ${MYSQL_FOUND}" >> Makefile
+	echo "export MYSQL_INC := ${MYSQL_INC}" >> Makefile
+	echo "export MYSQL_LIB := ${MYSQL_LIB}" >> Makefile
+	echo >> Makefile
+	echo "# duilder header ends #" >> Makefile
+	echo >> Makefile
+
+	sed -f tmp.sed Makefile.in >> Makefile
+
+	echo >> Makefile
+	echo "# duilder tail starts #" >> Makefile
+	echo >> Makefile
+	echo "# This is to allow exporting only the git tree" >> Makefile
+	echo "dist_git:" >> Makefile
+	echo "	@./duilder git \"\$(PRJ)\" \"${GIT_DEST}\" \"${EXPORT_GIT}\" \"${EXPORT_PATH}\" \"${GIT_CHANGELOG}\"" >> Makefile
+	echo >> Makefile
+	echo ".PHONY: dist" >> Makefile
+	echo "dist: clean" >> Makefile
+	echo "	@./duilder git \"\$(PRJ)\" \"${GIT_DEST}\" \"${EXPORT_GIT}\" \"${GIT_CHANGELOG}\"" \"${GIT_PUSH}\" >> Makefile
+	echo "	@./duilder tar \"\$(PRJ)\" \"\$(VER)\" \"${EXPORT_PATH}\" \"${EXCLUDE}\"" >> Makefile
+	echo "	@./duilder srpm \"\$(PRJ)\" \"\$(VER)\" \"${EXPORT_PATH}\" \"${BUILD_SRPM}\" \"${SRPM_DEST}\" \"${SRPM_POST_RUN}\"" >> Makefile
+	echo "	@./duilder docs \"\$(PRJ)\" \"\$(VER)\" \"${EXPORT_PATH}\"" >> Makefile
+	echo "	@./duilder final \"\$(PRJ)\" \"\$(VER)\" \"${RELEASE_SCRIPT}\"" >> Makefile
+	echo "	@rm -f \"\$(PRJ)-\$(VER).tar.gz\"" >> Makefile
+	echo >> Makefile
+fi
+
+if [ -r "${PRJ}.spec.in" ]; then
+	echo "Generate .spec file..."
+	sed -f tmp.sed ${PRJ}.spec.in > ${PRJ}.spec
+fi
+
+if [ ! -z "${CONFIG_H}" ]; then
+	echo "Generating ${CONFIG_H} file..."
+	sed -f tmp.sed ${CONFIG_H}.in > ${CONFIG_H}
+fi
+
+rm -f tmp.sed
+
+if [ "`basename ${0}`" = "duilderx" ]; then
+	echo "Clone myself to destination as 'duilder'..."
+	cp -vpf "${0}" ${PWD}/duilder
+fi
+
+echo "Done. Run make."

@@ -1,0 +1,24 @@
+export CC := gcc
+export INCS +=
+export LIBS +=
+export CFLAGS += -ggdb3 -Wall -Wextra -Wno-long-long -pipe
+export CFLAGSSO = $(CFLAGS) -ldl -lc -shared -rdynamic -fpic
+
+.PHONY: all
+all:	force_bind.so test_bind
+
+force_bind.so:	force_bind.c
+	$(CC) $(CFLAGSSO) -Wl,-soname,force_bind.so -o $@ force_bind.c
+
+test_bind:	test_bind.c
+	$(CC) $(CFLAGS) $< -o $@
+
+.PHONY: clean
+clean:
+	@rm -f force_bind.so.* test_bind *.a *.o *.so* $(PRJ)-*.rpm $(PRJ)-*-*-*.tgz $(PRJ)-*.tar.gz
+
+install:	all
+	@mkdir -p $(I_USR_BIN)
+	cp -vd force_bind $(I_USR_BIN)
+	@mkdir -p $(I_USR_LIB)
+	cp -vd force_bind.so $(I_USR_LIB)
