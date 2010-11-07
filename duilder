@@ -245,6 +245,37 @@ else
 fi
 
 
+if [ ! -r duilder.conf ]; then
+	echo "You must build a duilder.conf file!"
+	exit 1
+fi
+
+source ${PWD}/duilder.conf
+
+# fixes
+if [ -z "${GIT_DEST}" ]; then
+	GIT_DEST="${EXPORT_PATH}"
+fi
+
+if [ -z "${PRJ}" ]; then
+	echo "ERROR: PRJ= parameter is missing."
+	exit 1
+fi
+
+if [ -z "${VER}" ]; then
+	echo "ERROR: PRJ= parameter is missing."
+	exit 1
+fi
+
+if [ -z "${REV}" ]; then
+	echo "ERROR: REV= parameter is missing."
+	exit 1
+fi
+
+# export variables - just in case a script cares
+export PRJ VER REV EXPORT_PATH EXPORT_GIT GIT_PUSH GIT_DEST SRPM_DEST LICENSE
+
+
 # Multiplexer
 if [ "${1}" = "docs" ]; then
 	shift
@@ -276,42 +307,11 @@ if [ "${1}" = "final" ]; then
 	exit $?
 fi
 
-if [ ! -r duilder.conf ]; then
-	echo "You must build a duilder.conf file!"
-	exit 1
-fi
-
 
 ###### Main stuff
-
-source ${PWD}/duilder.conf
-
-# fixes
-if [ -z "${GIT_DEST}" ]; then
-	GIT_DEST="${EXPORT_PATH}"
-fi
-
-# export variables - just in case a script cares
-export PRJ VER REV EXPORT_PATH EXPORT_GIT GIT_PUSH GIT_DEST SRPM_DEST LICENSE
-
-if [ -z "${PRJ}" ]; then
-	echo "ERROR: PRJ= parameter is missing."
-	exit 1
-fi
-
-if [ -z "${VER}" ]; then
-	echo "ERROR: PRJ= parameter is missing."
-	exit 1
-fi
-
-if [ -z "${REV}" ]; then
-	echo "ERROR: REV= parameter is missing."
-	exit 1
-fi
-
 echo
 echo "Duilder builder script"
-echo "Copyright Catalin(ux) M BOIE"
+echo "Copyright Catalin(ux) M. BOIE"
 echo
 echo "PRJ=${PRJ}, VER=${VER}, REV=${REV}"
 echo "System: `uname -a`"
@@ -322,6 +322,7 @@ USR_BIN="/usr/bin"
 USR_SBIN="/usr/sbin"
 USR_INCLUDE="/usr/include"
 USR_LIB="/usr/lib"
+USR_SHARE="/usr/share"
 USR_SHARE_DOC="/usr/share/doc/${PRJ}-${VER}"
 SBIN="/usr/sbin"
 VAR="/var"
@@ -348,6 +349,9 @@ while [ "${1}" != "" ]; do
 			;;
 		--localstatedir)
 			VAR="${VAL}"
+			;;
+		--datadir)
+			USR_SHARE="${VAL}"
 			;;
 	esac
 	shift
@@ -429,12 +433,23 @@ else
 	echo "s#@EPOLL_FOUND@#1#g" >> tmp.sed
 fi
 
+echo -n "Searching for ncurses..."
+set +e
+echo -e "#include <ncurses.h> \n int main(void) { initscr(); return 0; }" | gcc -x c -pipe - -o /dev/null -lncurses 2>/dev/null
+E="${?}"
+set -e
+if [ "${E}" != "0" ]; then
+	echo " not found."
+	echo "s#@NCURSES_FOUND@#0#g" >> tmp.sed
+else
+	echo " found."
+	echo "s#@NCURSES_FOUND@#1#g" >> tmp.sed
+fi
+
 # generic stuff
 echo "s#@PRJ@#${PRJ}#g" >> tmp.sed
 echo "s#@VER@#${VER}#g" >> tmp.sed
 echo "s#@REV@#${REV}#g" >> tmp.sed
-echo "s#@DESCRIPTION@#${DESCRIPTION}#g" >> tmp.sed
-
 echo "s#@ETC@#${ETC}#g" >> tmp.sed
 echo "s#@BIN@#${BIN}#g" >> tmp.sed
 echo "s#@USR_BIN@#${USR_BIN}#g" >> tmp.sed
@@ -445,6 +460,7 @@ echo "s#@VAR_LOG@#${VAR_LOG}#g" >> tmp.sed
 echo "s#@USR_INCLUDE@#${USR_INCLUDE}#g" >> tmp.sed
 echo "s#@USR_INC@#${USR_INCLUDE}#g" >> tmp.sed
 echo "s#@USR_LIB@#${USR_LIB}#g" >> tmp.sed
+echo "s#@USR_SHARE@#${USR_SHARE}#g" >> tmp.sed
 echo "s#@USR_SHARE_DOC@#${USR_SHARE_DOC}#g" >> tmp.sed
 # Export stuff
 echo "s#@EXPORT_PATH@#${EXPORT_PATH}#g" >> tmp.sed
@@ -467,6 +483,7 @@ if [ -r Makefile.in ]; then
 	echo "export I_USR_SBIN := \$(DESTDIR)${USR_SBIN}" >> Makefile
 	echo "export I_USR_INCLUDE := \$(DESTDIR)${USR_INCLUDE}" >> Makefile
 	echo "export I_USR_INC := \$(DESTDIR)${USR_INCLUDE}" >> Makefile
+	echo "export I_USR_SHARE := \$(DESTDIR)${USR_SHARE}" >> Makefile
 	echo "export I_USR_SHARE_DOC := \$(DESTDIR)${USR_SHARE_DOC}" >> Makefile
 	echo "export I_USR_LIB := \$(DESTDIR)${USR_LIB}" >> Makefile
 	echo "export I_LIB := \$(DESTDIR)${USR_LIB}" >> Makefile
