@@ -292,7 +292,7 @@ if [ -z "${GIT_DEST}" ]; then
 fi
 
 # export variables - just in case a script cares
-export PRJ VER REV EXPORT_PATH EXPORT_GIT GIT_PUSH GIT_DEST SRPMS_DEST LICENSE
+export PRJ VER REV EXPORT_PATH EXPORT_GIT GIT_PUSH GIT_DEST SRPM_DEST LICENSE
 
 if [ -z "${PRJ}" ]; then
 	echo "ERROR: PRJ= parameter is missing."

@@ -30,9 +30,13 @@
 #include <arpa/inet.h>
 
 
-static int	(*old_bind)(int sockfd, const struct sockaddr *addr, socklen_t addrlen) = NULL;
-static char	*force_address = NULL;
-static int	force_port = -1;
+static int		(*old_bind)(int sockfd, const struct sockaddr *addr, socklen_t addrlen) = NULL;
+static int		(*old_setsockopt)(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
+static int		(*old_socket)(int domain, int type, int protocol);
+static char		*force_address = NULL;
+static int		force_port = -1;
+static char		set_tos = 0;
+static unsigned char	tos;
 
 /* Functions */
 
@@ -47,19 +51,43 @@ void init(void)
 	inited = 1;
 
 	x = getenv("FORCE_BIND_ADDRESS");
-	if (x != NULL)
+	if (x != NULL) {
 		force_address = x;
+		syslog(LOG_INFO, "force_bind: Force bind to address %s.\n",
+			force_address);
+	}
 
 	x = getenv("FORCE_BIND_PORT");
-	if (x != NULL)
+	if (x != NULL) {
 		force_port = strtol(x, NULL, 10);
+		syslog(LOG_INFO, "force_bind: Force bind to port %d.\n",
+			force_port);
+	}
 
-	syslog(LOG_INFO, "force_bind: Force bind to %s/%d.\n",
-		force_address, force_port);
+	/* tos */
+	x = getenv("FORCE_NET_TOS");
+	if (x != NULL) {
+		set_tos = 1;
+		tos = strtoul(x, NULL, 0);
+		syslog(LOG_INFO, "force_bind: Force TOS to %hhu.\n",
+			tos);
+	}
 
 	old_bind = dlsym(RTLD_NEXT, "bind");
 	if (old_bind == NULL) {
 		syslog(LOG_ERR, "force_bind: Cannot resolve 'bind'!\n");
+		exit(1);
+	}
+
+	old_setsockopt = dlsym(RTLD_NEXT, "setsockopt");
+	if (old_setsockopt == NULL) {
+		syslog(LOG_ERR, "force_bind: Cannot resolve 'setsockopt'!\n");
+		exit(1);
+	}
+
+	old_socket = dlsym(RTLD_NEXT, "socket");
+	if (old_socket == NULL) {
+		syslog(LOG_ERR, "force_bind: Cannot resolve 'socket'!\n");
 		exit(1);
 	}
 }
@@ -111,3 +139,42 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
 	return old_bind(sockfd, &new, addrlen);
 }
+
+int setsockopt(int sockfd, int level, int optname, const void *optval,
+	socklen_t optlen)
+{
+	init();
+
+	switch (optname) {
+		case IP_TOS:
+			if (set_tos == 1) {
+				syslog(LOG_INFO, "force_bind: changing TOS from %hhu to %hhu.\n",
+					*(char *)optval, tos);
+				optval = &tos;
+			}
+		break;
+	}
+
+
+	return old_setsockopt(sockfd, level, optname, optval, optlen);
+}
+
+/*
+ * 'socket' is hijacked to be able to call setsockopt on it.
+ */
+int socket(int domain, int type, int protocol)
+{
+	int sock;
+
+	init();
+
+	sock = old_socket(domain, type, protocol);
+	if (sock == -1)
+		return -1;
+
+	if (set_tos == 1)
+		setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, 1);
+
+	return sock;
+}
+

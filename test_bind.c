@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
 	socklen_t sa_len;
 	int port = 4444;
 	char junk[128];
+	unsigned char tos;
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
@@ -45,6 +46,11 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "Socket bound to %s/%d.\n",
 		inet_ntop(sa2.sin_family, &sa2.sin_addr, junk, sa_len),
 		ntohs(sa2.sin_port));
+
+	tos = 0x00;
+	err = setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, 1);
+	if (err != 0)
+		perror("setsockopt");
 
 	close(sock);
 
