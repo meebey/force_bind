@@ -28,6 +28,8 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 
 static int		(*old_bind)(int sockfd, const struct sockaddr *addr, socklen_t addrlen) = NULL;
@@ -35,10 +37,28 @@ static int		(*old_setsockopt)(int sockfd, int level, int optname, const void *op
 static int		(*old_socket)(int domain, int type, int protocol);
 static char		*force_address = NULL;
 static int		force_port = -1;
-static char		set_tos = 0;
-static unsigned char	tos;
+static unsigned int	set_tos = 0, tos;
+static unsigned int	set_keepalive = 0, keepalive;
 
 /* Functions */
+
+static void set_ka(int sock)
+{
+	int flag, ret;
+
+	flag = (keepalive > 0) ? 1 : 0;
+	ret = old_setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &flag, sizeof(flag));
+	syslog(LOG_INFO, "force_bind: changing SO_KEEPALIVE to 1 (ret=%d).\n", ret);
+}
+
+static void set_ka_idle(int sock)
+{
+	int ret;
+
+	ret = old_setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive, sizeof(keepalive));
+	syslog(LOG_INFO, "force_bind: changing TCP_KEEPIDLE to %us (ret=%d).\n",
+		keepalive, ret);
+}
 
 void init(void)
 {
@@ -71,6 +91,15 @@ void init(void)
 		tos = strtoul(x, NULL, 0);
 		syslog(LOG_INFO, "force_bind: Force TOS to %hhu.\n",
 			tos);
+	}
+
+	/* keep alive */
+	x = getenv("FORCE_NET_KA");
+	if (x != NULL) {
+		set_keepalive = 1;
+		keepalive = strtoul(x, NULL, 0);
+		syslog(LOG_INFO, "force_bind: Force KA to %u.\n",
+			keepalive);
 	}
 
 	old_bind = dlsym(RTLD_NEXT, "bind");
@@ -145,16 +174,28 @@ int setsockopt(int sockfd, int level, int optname, const void *optval,
 {
 	init();
 
-	switch (optname) {
-		case IP_TOS:
-			if (set_tos == 1) {
-				syslog(LOG_INFO, "force_bind: changing TOS from %hhu to %hhu.\n",
-					*(char *)optval, tos);
-				optval = &tos;
-			}
-		break;
+	if (level == SOL_SOCKET) {
+		if ((optname == SO_KEEPALIVE) && (set_keepalive == 1)) {
+			set_ka(sockfd);
+			return 0;
+		}
 	}
 
+	if (level == IPPROTO_IP) {
+		if ((optname == IP_TOS) && (set_tos == 1)) {
+			syslog(LOG_INFO, "force_bind: changing TOS from %hhu to %hhu.\n",
+				*(char *)optval, tos);
+			optval = &tos;
+			optlen = sizeof(tos);
+		}
+	}
+
+	if (level == IPPROTO_TCP) {
+		if ((optname == TCP_KEEPIDLE) && (set_keepalive == 1)) {
+			set_ka_idle(sockfd);
+			return 0;
+		}
+	}
 
 	return old_setsockopt(sockfd, level, optname, optval, optlen);
 }
@@ -173,7 +214,14 @@ int socket(int domain, int type, int protocol)
 		return -1;
 
 	if (set_tos == 1)
-		setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, 1);
+		setsockopt(sock, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+
+	if (set_keepalive == 1) {
+		set_ka(sock);
+
+		if (type == SOCK_STREAM)
+			set_ka_idle(sock);
+	}
 
 	return sock;
 }
