@@ -39,6 +39,8 @@ static char		*force_address = NULL;
 static int		force_port = -1;
 static unsigned int	set_tos = 0, tos;
 static unsigned int	set_keepalive = 0, keepalive;
+static unsigned int	force_mss = 0, mss;
+
 
 /* Functions */
 
@@ -58,6 +60,15 @@ static void set_ka_idle(int sock)
 	ret = old_setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive, sizeof(keepalive));
 	syslog(LOG_INFO, "force_bind: changing TCP_KEEPIDLE to %us (ret=%d).\n",
 		keepalive, ret);
+}
+
+static void set_mss(int sock)
+{
+	int ret;
+
+	ret = old_setsockopt(sock, IPPROTO_TCP, TCP_MAXSEG, &mss, sizeof(mss));
+	syslog(LOG_INFO, "force_bind: changing TCP_MAXSEG to %u (ret=%d).\n",
+		mss, ret);
 }
 
 void init(void)
@@ -100,6 +111,15 @@ void init(void)
 		keepalive = strtoul(x, NULL, 0);
 		syslog(LOG_INFO, "force_bind: Force KA to %u.\n",
 			keepalive);
+	}
+
+	/* mss */
+	x = getenv("FORCE_NET_MSS");
+	if (x != NULL) {
+		force_mss = 1;
+		mss = strtoul(x, NULL, 0);
+		syslog(LOG_INFO, "force_bind: Force MSS to %u.\n",
+			mss);
 	}
 
 	old_bind = dlsym(RTLD_NEXT, "bind");
@@ -195,6 +215,11 @@ int setsockopt(int sockfd, int level, int optname, const void *optval,
 			set_ka_idle(sockfd);
 			return 0;
 		}
+
+		if ((optname == TCP_MAXSEG) && (force_mss == 1)) {
+			set_mss(sockfd);
+			return 0;
+		}
 	}
 
 	return old_setsockopt(sockfd, level, optname, optval, optlen);
@@ -222,6 +247,9 @@ int socket(int domain, int type, int protocol)
 		if (type == SOCK_STREAM)
 			set_ka_idle(sock);
 	}
+
+	if (force_mss == 1)
+		set_mss(sock);
 
 	return sock;
 }
