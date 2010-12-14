@@ -1,5 +1,5 @@
 /Makefile
-Changelog
+Changelog*
 *.so*
 *.spec
 test_bind
