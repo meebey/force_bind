@@ -36,4 +36,4 @@ rm -rf ${RPM_BUILD_ROOT}
 %files
 %attr (-,root,root)
 %dir @USR_LIB@/*
-%doc README LICENSE Changelog
+%doc README LICENSE Changelog TODO
