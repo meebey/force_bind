@@ -1,8 +1,8 @@
-Summary:	Force binding to a specif address and/or port
+Summary:	Force binding to a specif address and/or port, changing TOS/TTL/MSS/etc.
 Name:		@PRJ@
 Version:	@VER@
 Release:	@REV@
-License:	LGPL
+License:	GPLv3
 Group:		Applications/Network
 Source:		http://kernel.embedromix.ro/us/Conn/%{name}-%{version}.tar.gz
 URL:		http://kernel.embedromix.ro/us/
