@@ -5,7 +5,7 @@ export CFLAGS += -ggdb3 -Wall -Wextra -Wno-long-long -pipe
 export CFLAGSSO = $(CFLAGS) -ldl -lc -shared -rdynamic -fpic
 
 .PHONY: all
-all:	force_bind.so test_bind
+all:	force_bind.so
 
 force_bind.so:	force_bind.c
 	$(CC) $(CFLAGSSO) -Wl,-soname,force_bind.so -o $@ force_bind.c
@@ -13,9 +13,12 @@ force_bind.so:	force_bind.c
 test_bind:	test_bind.c
 	$(CC) $(CFLAGS) $< -o $@
 
+send_udp: send_udp.c
+	$(CC) $(CFLAGS) $< -o $@
+
 .PHONY: clean
 clean:
-	@rm -f force_bind.so.* test_bind *.a *.o *.so* $(PRJ)-*.rpm $(PRJ)-*-*-*.tgz $(PRJ)-*.tar.gz
+	@rm -f force_bind.so.* test_bind *.a *.o *.so* $(PRJ)-*.rpm $(PRJ)-*-*-*.tgz $(PRJ)-*.tar.gz *.strace
 
 install:	all
 	@mkdir -p $(I_USR_LIB)

@@ -1,7 +1,7 @@
 #!/bin/sh
 
-export FORCE_NET_TOS="0xff"
+export FORCE_NET_KA=60
 
 export LD_PRELOAD="${LD_PRELOAD}:./force_bind.so"
 
-exec ./test_bind "$@"
+strace -o test_ka1.strace -f -s100 ./test_bind "$@"

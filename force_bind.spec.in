@@ -11,8 +11,8 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-buildroot
 
 
 %description
-It uses LD_PRELOAD to hijack 'bind' system call. Environment variables
-FORCE_BIND_ADDRESS and FORCE_BIND_PORT can be used to control it.
+It uses LD_PRELOAD to manipulate socket calls. Environment variables
+can be used to control in what way you want to bind/change TOS/MSS/KA/bandwidth.
 
 %prep
 %setup

@@ -1,4 +1,11 @@
-[ ] We we have more bind calls, we have a problem. Probably we have to use a table like this:
+[ ] If we have more bind calls, we have a problem. Probably we have to use a table like this:
 	ipv4 0.0.0.0/80 127.0.0.2/8080
 	ipv6 ::/80 ::1/8080
 	unix /tmp/sock /tmp/sock1
+[ ] Test UDP sendto and sendmsg!
+[ ] Overwrite destination
+[ ] Probably we have to hijack also dup/dup2/etc.
+[ ] Bandwidth per total or per socket. Better, per ip/protocol
+[ ] IPv6 flowlabel.
+[ ] Corrupt data
+[ ] 

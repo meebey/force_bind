@@ -3,3 +3,5 @@ Changelog*
 *.so*
 *.spec
 test_bind
+*.strace
+send_udp

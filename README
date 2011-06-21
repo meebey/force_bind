@@ -16,8 +16,57 @@ How it works:	force_bind is a shared object that is loaded with LD_PRELOAD and h
 		Forcing an IP/port to bind to is done with environments variables.
 
 Examples:
-		1. FORCE_BIND_ADDRESS=127.0.0.1 FORCE_BIND_PORT=33 LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so your_program # force binding to 127.0.0.1/33.
-		2. FORCE_BIND_ADDRESS=127.0.0.2 LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so your_program # force binding to 127.0.0.2
+		1. Force bind to 127.0.0.1, port 33, verbose operations:
+		export FORCE_NET_VERBOSE=1
+		export FORCE_BIND_ADDRESS_V4=127.0.0.1
+		export FORCE_BIND_PORT_V4=33
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		2. Force binding to 127.0.0.2, port unchanged
+		export FORCE_BIND_ADDRESS_V4=127.0.0.2
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		3. Force binding to ::1 (IPv6), port unchanged
+		export FORCE_BIND_ADDRESS_V6=::1
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		4. Changing TOS on all sockets to 30
+		export FORCE_NET_TOS=30
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		5. Force Keep alive to 60 seconds:
+		export FORCE_NET_KA=60
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		6. Force MSS to 1400
+		export FORCE_NET_MSS=1400
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		7. Force bandwidth to 1000 bytes/s for _all_ connections, cumulated
+		export FORCE_NET_BW=1000
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		8. Force bandwidth to 20000 bytes/s per socket
+		export FORCE_NET_BW_PER_SOCKET=20000
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		9. Force REUSEADDR
+		export FORCE_NET_REUSEADDR=1
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		10. Force NODELAY
+		export FORCE_NET_NODELAY=1
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
 
 Installation:
 		- ./configure
