@@ -34,7 +34,8 @@
 #include <netinet/tcp.h>
 
 
-#define FB_FLAGS_NETSOCK 1
+#define FB_FLAGS_NETSOCK 	(1 << 0)
+#define FB_FLAGS_BIND_CALLED	(1 << 1)
 
 struct private
 {
@@ -70,6 +71,7 @@ static ssize_t			(*old_send)(int sockfd, const void *buf, size_t len, int flags)
 static ssize_t			(*old_sendto)(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
 static ssize_t			(*old_sendmsg)(int sockfd, const struct msghdr *msg, int flags);
 static int			(*old_accept)(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+static int			(*old_connect)(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 
 static char			*force_address_v4 = NULL;
 static char			*force_address_v6 = NULL;
@@ -197,6 +199,8 @@ static void init(void)
 	x = getenv("FORCE_NET_VERBOSE");
 	if (x != NULL)
 		verbose = strtol(x, NULL, 10);
+
+	my_syslog(LOG_INFO, "force_bind: Init started...\n");
 
 	x = getenv("FORCE_BIND_ADDRESS_V4");
 	if (x != NULL) {
@@ -380,7 +384,13 @@ static void init(void)
 		exit(1);
 	}
 
-	my_syslog(LOG_INFO, "force_bind: Inited.\n");
+	old_connect = dlsym(RTLD_NEXT, "connect");
+	if (old_connect == NULL) {
+		my_syslog(LOG_ERR, "force_bind: Cannot resolve 'connect'!\n");
+		exit(1);
+	}
+
+	my_syslog(LOG_INFO, "force_bind: Init ended.\n");
 }
 
 static int set_ka(int sockfd)
@@ -482,36 +492,18 @@ static int set_nodelay(int sockfd)
 	return 0;
 }
 
-static void change_things(int sockfd, struct sockaddr *sa)
+/*
+ * Alters a struct sockaddr, based on environment variables
+ */
+static void alter_sa(const int sockfd, struct sockaddr *sa)
 {
-	int err;
-	struct sockaddr_storage tmp;
-	socklen_t tmp_len;
 	struct sockaddr_in *sa4;
 	struct sockaddr_in6 *sa6;
 	unsigned short *pport = NULL;
 	void *p;
-	struct node *q;
 	char *force_address;
 	int force_port;
-
-	init();
-
-	/* We do not touch non network sockets */
-	q = get(sockfd);
-	if ((q == NULL) || ((q->priv.flags & FB_FLAGS_NETSOCK) == 0))
-		return;
-
-	if (sa == NULL) {
-		tmp_len = sizeof(struct sockaddr_storage);
-		err = getsockname(sockfd, (struct sockaddr *) &tmp, &tmp_len);
-		if (err != 0) {
-			my_syslog(LOG_INFO, "force_bind: Cannot get socket name err=%d (%s) [%d]!\n",
-				err, strerror(errno), sockfd);
-			return;
-		}
-		sa = (struct sockaddr *) &tmp;
-	}
+	int err;
 
 	switch (sa->sa_family) {
 		case AF_INET:
@@ -547,15 +539,62 @@ static void change_things(int sockfd, struct sockaddr *sa)
 
 	if (force_port != -1)
 		*pport = htons(force_port);
+
+}
+
+/*
+ * Alter local binding by doing a forced 'bind' call.
+ * This is called before calling connect and before using sendto/sendmsg.
+ */
+static void change_local_binding(int sockfd)
+{
+	int err;
+	struct node *q;
+	struct sockaddr_storage tmp;
+	socklen_t tmp_len;
+
+	init();
+
+	/* We do not touch non network sockets */
+	q = get(sockfd);
+	if ((q == NULL) || ((q->priv.flags & FB_FLAGS_NETSOCK) == 0))
+		return;
+
+	/* We do not touch already binded sockets */
+	if ((q->priv.flags & FB_FLAGS_BIND_CALLED) != 0)
+		return;
+
+	tmp_len = sizeof(struct sockaddr_storage);
+	err = getsockname(sockfd, (struct sockaddr *) &tmp, &tmp_len);
+	if (err != 0) {
+		my_syslog(LOG_INFO, "force_bind: Cannot get socket name err=%d (%s) [%d]!\n",
+			err, strerror(errno), sockfd);
+		return;
+	}
+	alter_sa(sockfd, (struct sockaddr *) &tmp);
+	err = old_bind(sockfd, (struct sockaddr *) &tmp, tmp_len);
+	q->priv.flags |= FB_FLAGS_BIND_CALLED;
+	if (err != 0)
+		my_syslog(LOG_INFO, "force_bind: Cannot bind err=%d (%s)  [%d]!\n",
+			err, strerror(errno), sockfd);
 }
 
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
+	struct node *q;
 	struct sockaddr_storage new;
 
 	memcpy(&new, addr, addrlen);
 
-	change_things(sockfd, (struct sockaddr *) &new);
+	init();
+
+	/* We do not touch non network sockets */
+	q = get(sockfd);
+	if ((q != NULL) && ((q->priv.flags & FB_FLAGS_NETSOCK) != 0)) {
+		alter_sa(sockfd, (struct sockaddr *) &new);
+		q->priv.flags |= FB_FLAGS_BIND_CALLED;
+	}
+
 	return old_bind(sockfd, (struct sockaddr *) &new, addrlen);
 }
 
@@ -730,7 +769,6 @@ ssize_t write(int fd, const void *buf, size_t len)
 {
 	ssize_t n;
 
-	change_things(fd, NULL);
 	n = old_write(fd, buf, len);
 	bw(fd, n);
 
@@ -741,7 +779,6 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags)
 {
 	ssize_t n;
 
-	change_things(sockfd, NULL);
 	n = old_send(sockfd, buf, len, flags);
 	bw(sockfd, n);
 
@@ -753,7 +790,7 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 {
 	ssize_t n;
 
-	change_things(sockfd, NULL);
+	change_local_binding(sockfd);
 	n = old_sendto(sockfd, buf, len, flags, dest_addr, addrlen);
 	bw(sockfd, n);
 
@@ -767,7 +804,7 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags)
 {
 	ssize_t n;
 
-	change_things(sockfd, NULL);
+	change_local_binding(sockfd);
 	n = old_sendmsg(sockfd, msg, flags);
 	bw(sockfd, n);
 
@@ -785,8 +822,17 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	init();
 
 	new_sock = old_accept(sockfd, addr, addrlen);
+	if (new_sock == -1)
+		return -1;
 
 	socket_create_callback(new_sock, -1, -1);
 
 	return new_sock;
 }
+
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
+	change_local_binding(sockfd);
+	return old_connect(sockfd, addr, addrlen);
+}
+

@@ -68,6 +68,14 @@ Examples:
 		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
 		your_program_here
 
+		11. Force client connections (for example 'telnet', 'ssh',
+		'firefox' to connect from a specified address, not the auto
+		selected one:
+		export FORCE_NET_VERBOSE=1
+		export FORCE_BIND_ADDRESS_V4=127.0.0.2
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
 Installation:
 		- ./configure
 		- make
