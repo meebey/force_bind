@@ -5,3 +5,5 @@ Changelog*
 test_bind
 *.strace
 send_udp
+test_client
+test_client6

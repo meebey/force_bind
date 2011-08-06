@@ -8,4 +8,5 @@
 [ ] Bandwidth per total or per socket. Better, per ip/protocol
 [ ] IPv6 flowlabel.
 [ ] Corrupt data
+[ ] Add possibility to change destination of packets.
 [ ] 

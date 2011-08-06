@@ -19,9 +19,12 @@ send_udp: send_udp.c
 test_client: test_client.c
 	$(CC) $(CFLAGS) $< -o $@
 
+test_client6: test_client6.c
+	$(CC) $(CFLAGS) $< -o $@
+
 .PHONY: clean
 clean:
-	@rm -f force_bind.so.* test_bind send_udp test_client *.a *.o *.so* $(PRJ)-*.rpm $(PRJ)-*-*-*.tgz $(PRJ)-*.tar.gz *.strace
+	@rm -f force_bind.so.* test_bind send_udp test_client test_client6 *.a *.o *.so* $(PRJ)-*.rpm $(PRJ)-*-*-*.tgz $(PRJ)-*.tar.gz *.strace
 
 install:	all
 	@mkdir -p $(I_USR_LIB)

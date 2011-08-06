@@ -69,12 +69,23 @@ Examples:
 		your_program_here
 
 		11. Force client connections (for example 'telnet', 'ssh',
-		'firefox' to connect from a specified address, not the auto
+		'firefox') to connect from a specified address, not the auto
 		selected one:
 		export FORCE_NET_VERBOSE=1
 		export FORCE_BIND_ADDRESS_V4=127.0.0.2
 		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
 		your_program_here
+
+		12. Set a FLOWINFO (flow label + class) for a client connection:
+		export FORCE_NET_VERBOSE=1
+		export FORCE_NET_FLOWINFO=0x7812345 # class 0x78, label 0x12345
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+		A tcpdump of a connection will look like:
+		00:00:00:00:00:00 > 00:00:00:00:00:00, ethertype IPv6 (0x86dd),
+		length 94: (class 0x78, flowlabel 0x12345, hlim 64, next-header TCP (6) payload length: 40)
+		::1.56981 > ::1.krb524: Flags [S], cksum 0x0030 (incorrect -> 0x91cf),
+		seq 1154252590, win 32752, options [mss 16376,sackOK,TS val 28395104 ecr 0,nop,wscale 4], length 0
 
 Installation:
 		- ./configure
