@@ -110,6 +110,7 @@ static unsigned int		force_reuseaddr = 0, reuseaddr;
 static unsigned int		force_nodelay = 0, nodelay;
 static unsigned long long	bw_limit_per_socket = 0;
 static unsigned int		force_flowinfo = 0, flowinfo;
+static unsigned int		force_fwmark = 0, fwmark;
 static struct private		bw_global;
 static struct info		fdinfo;
 static unsigned int		verbose = 0;
@@ -376,6 +377,15 @@ static void init(void)
 			flowinfo);
 	}
 
+	/* fwmark */
+	x = getenv("FORCE_NET_FWMARK");
+	if (x != NULL) {
+		force_fwmark = 1;
+		fwmark = strtoul(x, NULL, 0);
+		my_syslog(LOG_INFO, "force_bind: Force fwmark to 0x%x.\n",
+			fwmark);
+	}
+
 
 	old_bind = dlsym(RTLD_NEXT, "bind");
 	if (old_bind == NULL) {
@@ -452,7 +462,7 @@ static int set_ka(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing SO_KEEPALIVE to %d (ret=%d(%s)) [%d].\n",
 		flag, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 static int set_ka_idle(int sockfd)
@@ -466,7 +476,7 @@ static int set_ka_idle(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing TCP_KEEPIDLE to %us (ret=%d(%s)) [%d].\n",
 		keepalive, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 static int set_mss(int sockfd)
@@ -480,7 +490,7 @@ static int set_mss(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing MSS to %u (ret=%d(%s)) [%d].\n",
 		mss, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 static int set_tos(int sockfd)
@@ -494,7 +504,7 @@ static int set_tos(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing TOS to %hhu (ret=%d(%s)) [%d].\n",
 		tos, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 static int set_ttl(int sockfd)
@@ -508,7 +518,7 @@ static int set_ttl(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing TTL to %hhu (ret=%d(%s)) [%d].\n",
 		ttl, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 static int set_reuseaddr(int sockfd)
@@ -522,7 +532,7 @@ static int set_reuseaddr(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing reuseaddr to %u (ret=%d(%s)) [%d].\n",
 		reuseaddr, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 static int set_nodelay(int sockfd)
@@ -536,7 +546,7 @@ static int set_nodelay(int sockfd)
 	my_syslog(LOG_INFO, "force_bind: changing nodelay to %u (ret=%d(%s)) [%d].\n",
 		nodelay, ret, strerror(errno), sockfd);
 
-	return 0;
+	return ret;
 }
 
 /*
@@ -579,6 +589,19 @@ static void set_flowinfo(int sockfd, struct private *p)
 		ret, strerror(errno), sockfd);
 }
 
+static int set_fwmark(int sockfd)
+{
+	int ret;
+
+	if (force_fwmark == 0)
+		return 0;
+
+	ret = old_setsockopt(sockfd, SOL_SOCKET, SO_MARK, &fwmark, sizeof(fwmark));
+	my_syslog(LOG_INFO, "force_bind: changing fwmark to 0x%x (ret=%d(%s)) [%d].\n",
+		fwmark, ret, strerror(errno), sockfd);
+
+	return ret;
+}
 
 /*
  * Alters a struct sockaddr, based on environment variables
@@ -728,6 +751,8 @@ int setsockopt(int sockfd, int level, int optname, const void *optval,
 			return set_ka(sockfd);
 		if (optname == SO_REUSEADDR)
 			return set_reuseaddr(sockfd);
+		if (optname == SO_MARK)
+			return set_fwmark(sockfd);
 	}
 
 	if (level == IPPROTO_IP) {
@@ -782,6 +807,7 @@ void socket_create_callback(const int sockfd, int domain, int type)
 	set_mss(sockfd);
 	set_reuseaddr(sockfd);
 	set_nodelay(sockfd);
+	set_fwmark(sockfd);
 
 	p.domain = domain;
 	p.type = type;

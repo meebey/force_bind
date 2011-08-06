@@ -87,6 +87,12 @@ Examples:
 		::1.56981 > ::1.krb524: Flags [S], cksum 0x0030 (incorrect -> 0x91cf),
 		seq 1154252590, win 32752, options [mss 16376,sackOK,TS val 28395104 ecr 0,nop,wscale 4], length 0
 
+		13. Force FWMARK on a connection (only root is allowed):
+		export FORCE_NET_VERBOSE=1
+		export FORCE_NET_FWMARK=0x1234
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
 Installation:
 		- ./configure
 		- make
