@@ -111,6 +111,7 @@ static unsigned int		force_nodelay = 0, nodelay;
 static unsigned long long	bw_limit_per_socket = 0;
 static unsigned int		force_flowinfo = 0, flowinfo;
 static unsigned int		force_fwmark = 0, fwmark;
+static unsigned int		force_prio = 0, prio;
 static struct private		bw_global;
 static struct info		fdinfo;
 static unsigned int		verbose = 0;
@@ -386,6 +387,15 @@ static void init(void)
 			fwmark);
 	}
 
+	/* prio */
+	x = getenv("FORCE_NET_PRIO");
+	if (x != NULL) {
+		force_prio = 1;
+		prio = strtoul(x, NULL, 0);
+		my_syslog(LOG_INFO, "force_bind: Force prio to %u.\n",
+			prio);
+	}
+
 
 	old_bind = dlsym(RTLD_NEXT, "bind");
 	if (old_bind == NULL) {
@@ -603,6 +613,20 @@ static int set_fwmark(int sockfd)
 	return ret;
 }
 
+static int set_prio(int sockfd)
+{
+	int ret;
+
+	if (force_prio == 0)
+		return 0;
+
+	ret = old_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(prio));
+	my_syslog(LOG_INFO, "force_bind: changing fwmark to 0x%x (ret=%d(%s)) [%d].\n",
+		prio, ret, strerror(errno), sockfd);
+
+	return ret;
+}
+
 /*
  * Alters a struct sockaddr, based on environment variables
  */
@@ -753,6 +777,8 @@ int setsockopt(int sockfd, int level, int optname, const void *optval,
 			return set_reuseaddr(sockfd);
 		if (optname == SO_MARK)
 			return set_fwmark(sockfd);
+		if (optname == SO_PRIORITY)
+			return set_prio(sockfd);
 	}
 
 	if (level == IPPROTO_IP) {
@@ -808,6 +834,7 @@ void socket_create_callback(const int sockfd, int domain, int type)
 	set_reuseaddr(sockfd);
 	set_nodelay(sockfd);
 	set_fwmark(sockfd);
+	set_prio(sockfd);
 
 	p.domain = domain;
 	p.type = type;

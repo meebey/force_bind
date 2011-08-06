@@ -93,6 +93,14 @@ Examples:
 		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
 		your_program_here
 
+		14: Force priority (between 0 and 6 for non-root users). You can
+		use 'tc' command from iproute to set-up 'prio' qdisc and to
+		assign prio to queues:
+		export FORCE_NET_VERBOSE=1
+		export FORCE_NET_PRIO=2
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
 Installation:
 		- ./configure
 		- make
