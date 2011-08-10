@@ -60,6 +60,7 @@ struct in6_flowlabel_req {
 #define FB_FLAGS_BIND_CALLED		(1 << 1)
 #define FB_FLAGS_FLOWINFO_CALLED	(1 << 2)
 
+
 struct private
 {
 	int			domain;
@@ -116,6 +117,10 @@ static struct private		bw_global;
 static struct info		fdinfo;
 static unsigned int		verbose = 0;
 
+/* glibc may not be up-to-date at compile time */
+#ifndef SO_MARK
+#define SO_MARK			36 /* only on some architectures */
+#endif
 
 /* Helper functions */
 static int my_syslog(int priority, const char *format, ...)
