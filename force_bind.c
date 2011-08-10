@@ -811,24 +811,8 @@ int setsockopt(int sockfd, int level, int optname, const void *optval,
 void socket_create_callback(const int sockfd, int domain, int type)
 {
 	struct private p;
-	socklen_t len;
-	int err;
 
 	init();
-
-	if (domain == -1) {
-		len = sizeof(domain);
-		err = getsockopt(sockfd, SOL_SOCKET, SO_DOMAIN, (void *) &domain, &len);
-		if (err != 0)
-			my_syslog(LOG_INFO, "force_bind: Cannot get socket domain err=%d (%s) [%d].\n",
-				err, strerror(errno), sockfd);
-
-		len = sizeof(type);
-		err = getsockopt(sockfd, SOL_SOCKET, SO_TYPE, (void *) &type, &len);
-		if (err != 0)
-			my_syslog(LOG_INFO, "force_bind: Cannot get socket type err=%d (%s) [%d].\n",
-				err, strerror(errno), sockfd);
-	}
 
 	set_tos(sockfd);
 	set_ttl(sockfd);
@@ -877,50 +861,50 @@ static void bw(const int sockfd, const ssize_t bytes)
 	long long allowed;
 	long long diff_ms, sleep_ms;
 	int err;
-	struct node *p;
-	struct private *q;
+	struct node *q;
+	struct private *p;
 
 	if (bytes <= 0)
 		return;
 
 	/* Is a network socket? */
-	p = get(sockfd);
-	if (p == NULL)
+	q = get(sockfd);
+	if (q == NULL)
 		return;
 
-	q = &p->priv;
-	if ((q->flags & FB_FLAGS_NETSOCK) == 0)
+	p = &q->priv;
+	if ((p->flags & FB_FLAGS_NETSOCK) == 0)
 		return;
 
-	if (q->limit == 0) {
+	if (p->limit == 0) {
 		if (bw_global.limit == 0)
 			return;
-		q = &bw_global;
+		p = &bw_global;
 	}
 
 	gettimeofday(&now, NULL);
 
-	diff_ms = (now.tv_sec - q->last.tv_sec) * 1000
-		+ (now.tv_usec - q->last.tv_usec) / 1000;
+	diff_ms = (now.tv_sec - p->last.tv_sec) * 1000
+		+ (now.tv_usec - p->last.tv_usec) / 1000;
 	if (diff_ms < 0)
 		return;
 
-	allowed = q->rest + q->limit * diff_ms / 1000;
-	q->last = now;
+	allowed = p->rest + p->limit * diff_ms / 1000;
+	p->last = now;
 
 	/*
-	printf("diff_ms=%lld rest=%llu bytes=%uz allowed=%llub\n",
-		diff_ms, q->rest, bytes, allowed);
+	printf("diff_ms=%lld rest=%llu bytes=%u allowed=%llub\n",
+		diff_ms, p->rest, bytes, allowed);
 	*/
 
 	if (bytes <= allowed) {
-		q->rest = allowed - bytes;
-		/*printf("\tInside limit, rest=%llu.\n", q->rest);*/
+		p->rest = allowed - bytes;
+		/*printf("\tInside limit, rest=%llu.\n", p->rest);*/
 		return;
 	}
 
-	q->rest = 0;
-	sleep_ms = (bytes - allowed) * 1000 / q->limit;
+	p->rest = 0;
+	sleep_ms = (bytes - allowed) * 1000 / p->limit;
 
 	/* Do not count, next time, the time spent in sleep! */
 	q->last.tv_sec += sleep_ms / 1000;
@@ -1024,6 +1008,8 @@ ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags)
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
 	int new_sock;
+	struct node *q;
+	struct private *p;
 
 	init();
 
@@ -1031,7 +1017,13 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 	if (new_sock == -1)
 		return -1;
 
-	socket_create_callback(new_sock, -1, -1);
+	/* We must find out domain and type for accepting socket */
+	q = get(sockfd);
+	if (q != NULL) {
+		p = &q->priv;
+
+		socket_create_callback(new_sock, p->domain, p->type);
+	}
 
 	return new_sock;
 }
