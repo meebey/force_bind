@@ -1,10 +1,10 @@
 #!/bin/sh
 
-# Test bandwidth limiting
+# Test bandwidth limiting, per socket, with 2 connections
 
 ulimit -c2000000
 
-export FORCE_NET_BW_PER_SOCKET="1000"
+export FORCE_NET_BW_PER_SOCKET=1000
 
 export LD_PRELOAD="${LD_PRELOAD}:./force_bind.so"
 

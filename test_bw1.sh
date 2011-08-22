@@ -4,7 +4,7 @@
 
 ulimit -c2000000
 
-export FORCE_NET_BW="1000"
+export FORCE_NET_BW=1000
 
 export LD_PRELOAD="${LD_PRELOAD}:./force_bind.so"
 
