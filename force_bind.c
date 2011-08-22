@@ -695,6 +695,10 @@ static void bw(const int sockfd, const ssize_t bytes)
 	q->rest = 0;
 	sleep_ms = (bytes - allowed) * 1000 / q->limit;
 
+	/* Do not count, next time, the time spent in sleep! */
+	q->last.tv_sec += sleep_ms / 1000;
+	q->last.tv_usec += (sleep_ms % 1000) * 1000;
+
 	ts.tv_sec = sleep_ms / 1000;
 	ts.tv_nsec = (sleep_ms % 1000) * 1000 * 1000;
 	printf("\tWe will sleep %lus %lunsec.\n", ts.tv_sec, ts.tv_nsec);
