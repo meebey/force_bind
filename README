@@ -56,7 +56,7 @@ Examples:
 		8. Force bandwidth to 20000 bytes/s per socket
 		export FORCE_NET_BW_PER_SOCKET=20000
 		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
-		your_program_here
+		scp root@machine1:/image.iso .
 
 		9. Force REUSEADDR
 		export FORCE_NET_REUSEADDR=1
