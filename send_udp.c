@@ -10,12 +10,14 @@
 int main(int argc, char *argv[])
 {
 	int sock[10], err;
-	struct sockaddr_in sa;
+	struct sockaddr_in sa, sa2;
+	socklen_t sa2_len;
 	int port = 123;
 	unsigned char buf[4096 * 100];
 	unsigned int bytes = 100000, rest, max;
 	unsigned int chunk_len = 1000;
 	unsigned int i, connections = 2;
+	char junk[128];
 
 	for (i = 0; i < connections; i++) {
 		sock[i] = socket(AF_INET, SOCK_DGRAM, 0);
@@ -61,8 +63,18 @@ int main(int argc, char *argv[])
 		rest -= err;
 	}
 
-	for (i = 0; i < connections; i++)
+	for (i = 0; i < connections; i++) {
+		err = getsockname(sock[i], (struct sockaddr *) &sa2, &sa2_len);
+		if (err != 0) {
+			perror("getsockname");
+			return 1;
+		}
+		fprintf(stderr, "Socket bound to %s/%d.\n",
+			inet_ntop(sa2.sin_family, &sa2.sin_addr, junk, sa2_len),
+			ntohs(sa2.sin_port));
+
 		close(sock[i]);
+	}
 
 	return 0;
 }
