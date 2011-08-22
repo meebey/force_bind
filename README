@@ -96,10 +96,21 @@ Examples:
 		14: Force priority (between 0 and 6 for non-root users). You can
 		use 'tc' command from iproute to set-up 'prio' qdisc and to
 		assign prio to queues:
+		# 0. setup
 		export FORCE_NET_VERBOSE=1
-		export FORCE_NET_PRIO=2
 		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
-		your_program_here
+		# 1. Make sure you have a 'prio' qdisc attached to eth0, for example:
+		tc qdisc add ev eth0 root handle 1: prio
+		# 2. Assign applications to classed (bands):
+		export FORCE_NET_PRIO=6 # interactive, band 0
+		your_voip_program_here
+		export FORCE_NET_PRIO=0 # best effort, band 1
+		your_mail_program_here
+		export FORCE_NET_PRIO=2 # bulk, band 2
+		your_remote_backup_program_here
+		# 3. Run tc statistics so you can see the classification:
+		tc -s class show dev eth0
+
 
 Installation:
 		- ./configure
