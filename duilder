@@ -10,7 +10,7 @@ function duilder_final()
 
 	# Run release script
 	if [ ! -z "${RELEASE_SCRIPT}" -a -x "${RELEASE_SCRIPT}" ]; then
-		echo "Running ${RELEASE_SCRIPT}..."
+		echo "[*] Running ${RELEASE_SCRIPT}..."
 		${RELEASE_SCRIPT}
 	fi
 }
@@ -22,21 +22,23 @@ function duilder_docs()
 	EXPORT_PATH="${3}"
 
 	if [ ! -d "${EXPORT_PATH}" ]; then
-		echo "WARN: ${EXPORT_PATH} does not exists. Skipping..."
-		return
+		echo "[*] WARN: ${EXPORT_PATH} does not exists. Creating it..."
+		mkdir -p "${EXPORT_PATH}"
 	fi
 
-	echo "Copying docs to [${EXPORT_PATH}]..."
+	echo "[*] Copying docs to [${EXPORT_PATH}]..."
 	for f in README License LICENSE Changelog Changelog-last TODO FAQ INSTALL; do
 		if [ -r "${f}" ]; then
 			cp -vp "${f}" "${EXPORT_PATH}/"
 		fi
 	done
+	echo
 
 	if [ -d "screenshot" ]; then
-		echo "Copying screenshots..."
+		echo "[*] Copying screenshots..."
 		mkdir -p "${EXPORT_PATH}"
 		cp -vp screenshot/* "${EXPORT_PATH}/"
+		echo
 	fi
 }
 
@@ -49,17 +51,17 @@ function duilder_git()
 	GIT_PUSH="${5}"
 
 	if [ ! -x /usr/bin/git ]; then
-		echo "Warning: Git not found!"
+		echo "[*] Warning: Git not found!"
 		exit 0
 	fi
 
 	if [ ! -d .git ]; then
-		echo "Warning: I cannot find .git directory!"
+		echo "[*] Warning: I cannot find .git directory!"
 		exit 0
 	fi
 
 	if [ "${EXPORT_GIT}" = "1" ]; then
-		echo "Generate GIT tree for HTTP transport..."
+		echo "[*] Generating GIT tree for HTTP transport..."
 		if [ ! -d "${GIT_DEST}/${PRJ}.git" ]; then
 			git clone --bare . "${GIT_DEST}/${PRJ}.git"
 
@@ -93,20 +95,14 @@ function duilder_git()
 		echo -n > Changelog
 
 		# get the list of tags
-		i=0
 		number_of_tags=0
-		for tag in `git tag -l`; do
-			if [ "${tag:0:1}" != "v" ]; then
-				# skip other kind of tags beside versions
-				continue
-			fi
-
-			tags[${i}]=${tag}
-			tags_commit[${i}]=`git show-ref ${tag} | cut -d' ' -f1`
+		while read sha1 full_tag; do
+			tag=`echo ${full_tag} | sed -e 's#refs/tags/##' | cut -d'^' -f1`
+			echo "tag ${tag}, sha1 ${sha1}"
+			tags[${number_of_tags}]=${tag}
+			tags_commit[${number_of_tags}]=${sha1}
 			number_of_tags=$[${number_of_tags}+1]
-
-			i=$[${i}+1]
-		done
+		done < <(git show-ref --tags -d | grep refs/tags/v)
 
 		# get the list of commits, test if is a tag and do the diff
 		prev=""
@@ -165,36 +161,41 @@ function duilder_srpm()
 	P="${PRJ}-${VER}"
 
 	if [ ! -d "${EXPORT_PATH}" ]; then
-		echo "WARN: ${EXPORT_PATH} does not exists. Skipping..."
-		return
+		echo "WARN: ${EXPORT_PATH} does not exists. Creating it..."
+		mkdir -p "${EXPORT_PATH}"
 	fi
 
 	if [ "${BUILD_SRPM}" != "1" ]; then
 		exit 0
 	fi
 
-	echo "Building SRPM..."
+	echo "[*] Building SRPM..."
 	rpmbuild -ts "${P}.tar.gz"
+	echo
 
-	PKG="${RPMBUILD}/SRPMS/${P}-1.src.rpm"
+	PKG="${RPMBUILD}/SRPMS/${P}-${REV}.src.rpm"
 
 	# Run a rpmlint on it
 	if [ -x /usr/bin/rpmlint ]; then
 		echo "[*] RPMlinting..."
 		rpmlint -iv "${PKG}" > rpmlint.out
+	else
+		echo "[*] WARN: rpmlint is missing!"
 	fi
 
 	if [ ! -z "${SRPM_DEST}" ]; then
-		echo "Copying [${PKG}] to [${SRPM_DEST}]..."
+		echo "[*] Copying [${PKG}] to [${SRPM_DEST}]..."
 		cp -vp "${PKG}" "${SRPM_DEST}/"
+		echo
 	fi
 
-	echo "Copying to export dir [${EXPORT_PATH}]..."
+	echo "[*] Copying to export dir [${EXPORT_PATH}]..."
 	mkdir -p "${EXPORT_PATH}"
 	cp -vp "${PKG}" "${EXPORT_PATH}/"
+	echo
 
 	if [ -x "${SRPM_POST_RUN}" ]; then
-		echo "Running post SRPM build script [${SRPM_POST_RUN}]..."
+		echo "[*] Running post SRPM build script [${SRPM_POST_RUN}]..."
 		${SRPM_POST_RUN} "${PKG}"
 	fi
 }
@@ -209,11 +210,11 @@ function duilder_tar()
 	P="${PRJ}-${VER}"
 
 	if [ ! -d "${EXPORT_PATH}" ]; then
-		echo "WARN: ${EXPORT_PATH} does not exists. Skipping..."
-		return
+		echo "[*] WARN: ${EXPORT_PATH} does not exists. Creating it..."
+		mkdir -p "${EXPORT_PATH}"
 	fi
 
-	echo "Generating tarball [${P}.tar.gz]..."
+	echo "[*] Generating tarball [${P}.tar.gz]..."
 	ADD_EXCLUDE=""
 	if [ ! -z "${EXCLUDE}" ]; then
 		ADD_EXCLUDE="--exclude-from ${P}/${EXCLUDE}"
@@ -230,9 +231,10 @@ function duilder_tar()
 	&& rm -rf "${P}"
 	)
 
-	echo "Copying source to ${EXPORT_PATH}/..."
+	echo "[*] Copying source to ${EXPORT_PATH}..."
 	mkdir -p "${EXPORT_PATH}"
 	cp -vp "${P}.tar.gz" "${EXPORT_PATH}/"
+	echo
 }
 
 ####################################################################
@@ -246,7 +248,7 @@ fi
 
 
 if [ ! -r duilder.conf ]; then
-	echo "You must build a duilder.conf file!"
+	echo "[*] You must build a duilder.conf file!"
 	exit 1
 fi
 
@@ -263,7 +265,7 @@ if [ -z "${PRJ}" ]; then
 fi
 
 if [ -z "${VER}" ]; then
-	echo "ERROR: PRJ= parameter is missing."
+	echo "ERROR: VER= parameter is missing."
 	exit 1
 fi
 
@@ -309,12 +311,10 @@ fi
 
 
 ###### Main stuff
-echo
-echo "Duilder builder script"
-echo "Copyright Catalin(ux) M. BOIE"
-echo
-echo "PRJ=${PRJ}, VER=${VER}, REV=${REV}"
-echo "System: `uname -a`"
+echo "[*] Duilder builder script"
+echo "[*] Copyright Catalin(ux) M. BOIE - catab at embedromix dot ro"
+echo "[*] PRJ=${PRJ}, VER=${VER}, REV=${REV}"
+echo "[*] System: `uname -a`"
 
 ETC="/etc"
 BIN="/bin"
@@ -326,7 +326,6 @@ USR_SHARE="/usr/share"
 USR_SHARE_DOC="/usr/share/doc/${PRJ}-${VER}"
 SBIN="/usr/sbin"
 VAR="/var"
-VAR_LOG="/var/log/${PRJ}"
 
 while [ "${1}" != "" ]; do
 	VAR="`echo ${1} | cut -d'=' -f1`"
@@ -357,12 +356,17 @@ while [ "${1}" != "" ]; do
 	shift
 done
 
+# Last fixes
+VAR_LOG="${VAR}/log"
+VAR_RUN="${VAR}/run"
+
+
 # Truncate future sed file
 > tmp.sed
 
 DB_SUPPORT=0
 
-echo -n "Searching for PostgreSQL..."
+echo -n "[*] Searching for PostgreSQL..."
 set +e
 PG_VERSION="`pg_config --version 2>/dev/null`"
 set -e
@@ -385,7 +389,7 @@ fi
 echo "s#@PG_FOUND@#${PG_FOUND}#g" >> tmp.sed
 
 
-echo -n "Searching for MySQL..."
+echo -n "[*] Searching for MySQL..."
 set +e
 MYSQL_VERSION="`mysql_config --version 2>/dev/null`"
 set -e
@@ -407,7 +411,7 @@ else
 fi
 echo "s#@MYSQL_FOUND@#${MYSQL_FOUND}#g" >> tmp.sed
 
-echo -n "Searching for poll..."
+echo -n "[*] Searching for poll..."
 set +e
 echo -e "#include <poll.h> \n int main(void) { return poll(0, 0, 0); }" | gcc -x c -pipe - -o /dev/null 2>/dev/null
 E="${?}"
@@ -420,7 +424,7 @@ else
 	echo "s#@POLL_FOUND@#1#g" >> tmp.sed
 fi
 
-echo -n "Searching for epoll..."
+echo -n "[*] Searching for epoll..."
 set +e
 echo -e "#include <sys/epoll.h> \n int main(void) { return epoll_create(64); }" | gcc -x c -pipe - -o /dev/null 2>/dev/null
 E="${?}"
@@ -433,7 +437,7 @@ else
 	echo "s#@EPOLL_FOUND@#1#g" >> tmp.sed
 fi
 
-echo -n "Searching for ncurses..."
+echo -n "[*] Searching for ncurses..."
 set +e
 echo -e "#include <ncurses.h> \n int main(void) { initscr(); return 0; }" | gcc -x c -pipe - -o /dev/null -lncurses 2>/dev/null
 E="${?}"
@@ -457,6 +461,7 @@ echo "s#@SBIN@#${SBIN}#g" >> tmp.sed
 echo "s#@USR_SBIN@#${USR_SBIN}#g" >> tmp.sed
 echo "s#@VAR@#${VAR}#g" >> tmp.sed
 echo "s#@VAR_LOG@#${VAR_LOG}#g" >> tmp.sed
+echo "s#@VAR_RUN@#${VAR_RUN}#g" >> tmp.sed
 echo "s#@USR_INCLUDE@#${USR_INCLUDE}#g" >> tmp.sed
 echo "s#@USR_INC@#${USR_INCLUDE}#g" >> tmp.sed
 echo "s#@USR_LIB@#${USR_LIB}#g" >> tmp.sed
@@ -468,7 +473,7 @@ echo "s#@EXPORT_PATH@#${EXPORT_PATH}#g" >> tmp.sed
 
 
 if [ -r Makefile.in ]; then
-	echo "Building Makefile..."
+	echo "[*] Building Makefile..."
 	echo -n > Makefile
 	echo "# duilder header starts #" >> Makefile
 	echo "export PRJ := ${PRJ}" >> Makefile
@@ -489,6 +494,7 @@ if [ -r Makefile.in ]; then
 	echo "export I_LIB := \$(DESTDIR)${USR_LIB}" >> Makefile
 	echo "export I_VAR := \$(DESTDIR)${VAR}" >> Makefile
 	echo "export I_VAR_LOG := \$(DESTDIR)${VAR_LOG}" >> Makefile
+	echo "export I_VAR_RUN := \$(DESTDIR)${VAR_RUN}" >> Makefile
 	echo >> Makefile
 	echo "# DB stuff" >> Makefile
 	echo "export DB_SUPPORT := ${DB_SUPPORT}" >> Makefile
@@ -525,20 +531,20 @@ if [ -r Makefile.in ]; then
 fi
 
 if [ -r "${PRJ}.spec.in" ]; then
-	echo "Generate .spec file..."
+	echo "[*] Generating .spec file..."
 	sed -f tmp.sed ${PRJ}.spec.in > ${PRJ}.spec
 fi
 
 if [ ! -z "${CONFIG_H}" ]; then
-	echo "Generating ${CONFIG_H} file..."
+	echo "[*] Generating ${CONFIG_H} file..."
 	sed -f tmp.sed ${CONFIG_H}.in > ${CONFIG_H}
 fi
 
 rm -f tmp.sed
 
 if [ "`basename ${0}`" = "duilderx" ]; then
-	echo "Clone myself to destination as 'duilder'..."
+	echo "[*] Cloning myself to destination as 'duilder'..."
 	cp -vpf "${0}" ${PWD}/duilder
 fi
 
-echo "Done. Run make."
+echo "[*] Done. Run make."
