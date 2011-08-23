@@ -903,12 +903,14 @@ static void bw(const int sockfd, const ssize_t bytes)
 	allowed = q->rest + q->limit * diff_ms / 1000;
 	q->last = now;
 
-	printf("diff_ms=%lld rest=%llu bytes=%u allowed=%llub\n",
+	/*
+	printf("diff_ms=%lld rest=%llu bytes=%uz allowed=%llub\n",
 		diff_ms, q->rest, bytes, allowed);
+	*/
 
 	if (bytes <= allowed) {
 		q->rest = allowed - bytes;
-		printf("\tInside limit, rest=%llu.\n", q->rest);
+		/*printf("\tInside limit, rest=%llu.\n", q->rest);*/
 		return;
 	}
 
@@ -921,7 +923,7 @@ static void bw(const int sockfd, const ssize_t bytes)
 
 	ts.tv_sec = sleep_ms / 1000;
 	ts.tv_nsec = (sleep_ms % 1000) * 1000 * 1000;
-	printf("\tWe will sleep %lus %lunsec.\n", ts.tv_sec, ts.tv_nsec);
+	/*printf("\tWe will sleep %lus %lunsec.\n", ts.tv_sec, ts.tv_nsec);*/
 
 	/* We try to sleep even if we are interrupted by signals */
 	while (1) {
