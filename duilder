@@ -98,7 +98,6 @@ function duilder_git()
 		number_of_tags=0
 		while read sha1 full_tag; do
 			tag=`echo ${full_tag} | sed -e 's#refs/tags/##' | cut -d'^' -f1`
-			echo "tag ${tag}, sha1 ${sha1}"
 			tags[${number_of_tags}]=${tag}
 			tags_commit[${number_of_tags}]=${sha1}
 			number_of_tags=$[${number_of_tags}+1]
