@@ -16,6 +16,11 @@ How it works:	force_bind is a shared object that is loaded with LD_PRELOAD and h
 		Forcing an IP/port to bind to is done with environments variables.
 
 Examples:
+		0. Output debug stuff in a log file (for debugging):
+		export FORCE_NET_VERBOSE=999
+		export FORCE_NET_LOG="xxx.log"
+		your_program_here
+
 		1. Force bind to 127.0.0.1, port 33, verbose operations:
 		export FORCE_NET_VERBOSE=1
 		export FORCE_BIND_ADDRESS_V4=127.0.0.1
