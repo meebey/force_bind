@@ -7,6 +7,10 @@
 [ ] Bandwidth per total or per socket. Better, per ip/protocol
 [ ] Corrupt data
 [ ] Add possibility to change destination of packets.
-[ ] SO_PRIORITY
 [ ] MTU
+[ ] Add posibility to change on-the-fly the parameters by using a AF_UNIX socket
+[ ] bwtop: http://superuser.com/questions/32932/is-there-a-way-to-find-out-what-application-using-most-of-bandwidth-in-linux
+[ ] http://superuser.com/questions/106781/how-do-you-measure-the-bandwidth-used-by-a-given-process-after-it-has-completed
+[ ] Bandwidth limitting also for download
+[ ] Dump statistics (bytes, syscalls etc.) in a file specified by a env var.
 [ ] 
