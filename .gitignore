@@ -7,3 +7,5 @@ test_bind
 send_udp
 test_client
 test_client6
+*.out
+*.log
