@@ -14,7 +14,7 @@ It uses LD_PRELOAD to manipulate socket calls. Environment variables
 can be used to control in what way you want to bind/change TOS/MSS/KA/bandwidth.
 
 %prep
-%setup
+%setup -q
 
 %build
 %configure
@@ -34,7 +34,7 @@ rm -rf ${RPM_BUILD_ROOT}
 
 %files
 %attr (-,root,root)
-%dir %{_libdir}/*
+%{_libdir}/*
 %doc README LICENSE Changelog TODO
 
 %changelog
