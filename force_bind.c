@@ -907,8 +907,8 @@ static void bw(const int sockfd, const ssize_t bytes)
 	sleep_ms = (bytes - allowed) * 1000 / p->limit;
 
 	/* Do not count, next time, the time spent in sleep! */
-	q->last.tv_sec += sleep_ms / 1000;
-	q->last.tv_usec += (sleep_ms % 1000) * 1000;
+	p->last.tv_sec += sleep_ms / 1000;
+	p->last.tv_usec += (sleep_ms % 1000) * 1000;
 
 	ts.tv_sec = sleep_ms / 1000;
 	ts.tv_nsec = (sleep_ms % 1000) * 1000 * 1000;
