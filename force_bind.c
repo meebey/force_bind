@@ -33,6 +33,16 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+
+/* glibc may not be up-to-date at compile time */
+#ifndef SO_MARK
+#define SO_MARK			36 /* only on some architectures */
+#endif
+
+#ifndef SOCK_DCCP
+#define SOCK_DCCP		6
+#endif
+
 #ifndef IPV6_FLOWINFO_SEND
 #define IPV6_FLOWLABEL_MGR	32
 #define IPV6_FLOWINFO_SEND	33
@@ -118,11 +128,6 @@ static struct info		fdinfo;
 static unsigned int		verbose = 0;
 static char			*log_file = NULL;
 static FILE			*Log = NULL;
-
-/* glibc may not be up-to-date at compile time */
-#ifndef SO_MARK
-#define SO_MARK			36 /* only on some architectures */
-#endif
 
 
 /* Helper functions */
