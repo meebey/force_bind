@@ -33,6 +33,8 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+#include "force_bind_config.h"
+
 
 /* glibc may not be up-to-date at compile time */
 #ifndef SO_MARK
@@ -357,6 +359,7 @@ static void init(void)
 		verbose = strtol(x, NULL, 10);
 
 	xlog(1, "Init started...\n");
+	xlog(0, "Version: %s\n", FORCE_BIND_VERSION);
 
 	x = getenv("FORCE_BIND_ADDRESS_V4");
 	if (x != NULL) {

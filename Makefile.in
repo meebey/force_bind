@@ -7,7 +7,7 @@ export CFLAGSSO = $(CFLAGS) -ldl -lc -shared -rdynamic -fpic
 .PHONY: all
 all:	force_bind.so
 
-force_bind.so:	force_bind.c
+force_bind.so:	force_bind.c force_bind_config.h
 	$(CC) $(CFLAGSSO) -Wl,-soname,force_bind.so -o $@ force_bind.c
 
 test_bind:	test_bind.c

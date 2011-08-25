@@ -9,3 +9,4 @@ test_client
 test_client6
 *.out
 *.log
+force_bind_config.h
