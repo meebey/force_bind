@@ -170,26 +170,34 @@ static char *sprotocol(const int protocol)
 }
 
 /*
- * Set @out to a string with the address
+ * Fills @out with domain/type/address/port string
  */
-static void saddr(char *out, const struct sockaddr_storage *ss)
+static void saddr(char *out, const int out_len,
+	const struct sockaddr_storage *ss)
 {
 	struct sockaddr_in *s4;
 	struct sockaddr_in6 *s6;
+	char addr[40], port[8];
 
 	switch (ss->ss_family) {
 	case AF_INET:
 		s4 = (struct sockaddr_in *) ss;
-		inet_ntop(AF_INET, (void *) &s4->sin_addr.s_addr, out, sizeof(struct sockaddr_in));
+		inet_ntop(AF_INET, (void *) &s4->sin_addr.s_addr, addr, sizeof(struct sockaddr_in));
+		snprintf(port, sizeof(port), "%d", s4->sin_port);
 		break;
 	case AF_INET6:
 		s6 = (struct sockaddr_in6 *) ss;
-		inet_ntop(AF_INET6, (void *) &s6->sin6_addr.s6_addr, out, sizeof(struct sockaddr_in6));
+		inet_ntop(AF_INET6, (void *) &s6->sin6_addr.s6_addr, addr, sizeof(struct sockaddr_in6));
+		snprintf(port, sizeof(port), "%d", s6->sin6_port);
 		break;
 	default:
-		sprintf(out, "Unknown address type (%d)", ss->ss_family);
+		strcpy(addr, "?");
+		strcpy(port, "?");
 		break;
 	}
+
+	snprintf(out, out_len, "%s/%s/%s",
+		sdomain(ss->ss_family), addr, port);
 }
 
 static void xlog(const unsigned int level, const char *format, ...)
@@ -242,7 +250,7 @@ static void list(const int level)
 {
 	struct node *q;
 	struct private *p;
-	char dest[64];
+	char dest[128];
 
 	xlog(level, "list...\n");
 
@@ -254,12 +262,10 @@ static void list(const int level)
 		}
 
 		p = &q->priv;
-		saddr(dest, &p->dest);
-		xlog(level, "\tfd=%4d domain=%s type=%s"
-			" flags=%04x limit=%llu"
+		saddr(dest, sizeof(dest), &p->dest);
+		xlog(level, "\tfd=%4d type=%s flags=%04x limit=%llu"
 			" rest=%llu last=%u.%06u dest=%s\n",
-			q->fd, sdomain(p->domain), stype(p->type),
-			p->flags, p->limit,
+			q->fd, stype(p->type), p->flags, p->limit,
 			p->rest, p->last.tv_sec, p->last.tv_usec, dest);
 		q = q->next;
 	}
@@ -364,14 +370,14 @@ static void init(void)
 	x = getenv("FORCE_BIND_ADDRESS_V4");
 	if (x != NULL) {
 		force_address_v4 = x;
-		xlog(1, "Force bind to address %s.\n",
+		xlog(1, "Force bind to IPv4 address \"%s\".\n",
 			force_address_v4);
 	}
 
 	x = getenv("FORCE_BIND_ADDRESS_V6");
 	if (x != NULL) {
 		force_address_v6 = x;
-		xlog(1, "Force bind to address %s.\n",
+		xlog(1, "Force bind to IPv6 address \"%s\".\n",
 			force_address_v6);
 	}
 
@@ -380,7 +386,7 @@ static void init(void)
 	if (x != NULL) {
 		force_address_v4 = x;
 		force_address_v6 = x;
-		xlog(1, "Force bind to address %s."
+		xlog(1, "Force bind to address \"%s\"."
 			" Obsolete, use FORCE_BIND_ADDRESS_V4/6.\n",
 			force_address_v4);
 	}
@@ -809,24 +815,23 @@ static int alter_sa(const int sockfd, struct sockaddr *sa)
 static void alter_dest_sa(int sockfd, struct sockaddr_storage *ss, socklen_t len)
 {
 	struct node *q;
-	struct sockaddr *sa = (struct sockaddr *) ss;
 	struct sockaddr_in6 *sa6;
-	char addr[64];
+	char addr[128];
 
 	init();
 
-	saddr(addr, ss);
-	xlog(2, "alter_dest_sa(sockfd=%d, [domain=%s, addr=%s])\n",
-		sockfd, sdomain(ss->ss_family), addr);
+	saddr(addr, sizeof(addr), ss);
+	xlog(2, "alter_dest_sa(sockfd=%d, addr=%s)\n",
+		sockfd, addr);
 
 	/* We do not touch non network sockets */
 	q = get(sockfd);
 	if ((q == NULL) || ((q->priv.flags & FB_FLAGS_NETSOCK) == 0))
 		return;
 
-	switch (sa->sa_family) {
+	switch (ss->ss_family) {
 	case AF_INET6:
-		sa6 = (struct sockaddr_in6 *) sa;
+		sa6 = (struct sockaddr_in6 *) ss;
 		if (force_flowinfo == 1) {
 			xlog(1, "changing flowinfo from 0x%x to 0x%x [%d]!\n",
 				ntohl(sa6->sin6_flowinfo), flowinfo, sockfd);
@@ -887,19 +892,45 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 	struct node *q;
 	struct sockaddr_storage new;
+	char *force_address = "";
+	char tmp[128];
 
 	init();
 
-	xlog(1, "bind(sockfd=%d, ...)!\n", sockfd);
+	saddr(tmp, sizeof(tmp), (struct sockaddr_storage *) addr);
+	xlog(1, "bind(sockfd=%d, %s)\n", sockfd, tmp);
 
 	memcpy(&new, addr, addrlen);
 
 	/* We do not touch non network sockets */
 	q = get(sockfd);
-	if ((q != NULL) && ((q->priv.flags & FB_FLAGS_NETSOCK) != 0)) {
+	do {
+		if (q == NULL)
+			break;
+
+		if ((q->priv.flags & FB_FLAGS_NETSOCK) == 0)
+			break;
+
+		switch (q->priv.domain) {
+		case AF_INET: force_address = force_address_v4; break;
+		case AF_INET6: force_address = force_address_v6; break;
+		}
+
+		/* Test if we should deny the bind */
+		if (strcmp(force_address, "deny") == 0) {
+			xlog(1, "\tDeny binding to %s\n", tmp);
+			errno = EACCES;
+			return -1;
+		}
+
+		if (strcmp(force_address, "fake") == 0) {
+			xlog(1, "\tFake binding to %s\n", tmp);
+			return 0;
+		}
+
 		alter_sa(sockfd, (struct sockaddr *) &new);
 		q->priv.flags |= FB_FLAGS_BIND_CALLED;
-	}
+	} while (0);
 
 	return old_bind(sockfd, (struct sockaddr *) &new, addrlen);
 }
@@ -982,7 +1013,7 @@ int socket(int domain, int type, int protocol)
 
 	init();
 
-	xlog(1, "socket(domain=%s, type=%s, protocol=%d)\n",
+	xlog(1, "socket(domain=%s, type=%s, protocol=%s)\n",
 		sdomain(domain), stype(type), sprotocol(protocol));
 
 	sockfd = old_socket(domain, type, protocol);

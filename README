@@ -116,6 +116,19 @@ Examples:
 		# 3. Run tc statistics so you can see the classification:
 		tc -s class show dev eth0
 
+		15: Deny binding to any IPv4 sockets. The bind syscall
+		will return -1 and errno will be set to EACCES.
+		export FORCE_NET_VERBOSE=1
+		export FORCE_BIND_ADDRESS_V4=deny
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
+
+		16: Silent fake binding to any IPv6 sockets. The bind will
+		return success, but will never accept any connection.
+		export FORCE_NET_VERBOSE=1
+		export FORCE_BIND_ADDRESS_V6=fake
+		export LD_PRELOAD=${LD_PRELOAD}:/usr/lib/force_bind.so
+		your_program_here
 
 Installation:
 		- ./configure

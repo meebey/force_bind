@@ -2,7 +2,7 @@ Summary:	Force binding to a specif address and/or port, changing TOS/TTL/MSS/etc
 Name:		@PRJ@
 Version:	@VER@
 Release:	@REV@
-License:	GPLv3
+License:	GPLv3+
 Group:		Applications/Communications
 Source:		http://kernel.embedromix.ro/us/Conn/%{name}-%{version}.tar.gz
 URL:		http://kernel.embedromix.ro/us/
@@ -34,9 +34,11 @@ rm -rf ${RPM_BUILD_ROOT}
 
 %files
 %attr (-,root,root)
-%{_libdir}/*
+%{_libdir}/*.so
 %doc README LICENSE Changelog TODO
 
 %changelog
-* Mon Aug 22 2011 Catalin(ux) M. BOIE <catab at embedromix dot ro> 0.8
+* Wed Jul 18 2012 Catalin(ux) M. BOIE <catab at embedromix dot ro> - 0.11-1
+Added support for deny and fake.
+* Mon Aug 22 2011 Catalin(ux) M. BOIE <catab at embedromix dot ro> - 0.8-1
 Added support for SO_PRIORITY, FWMARK and IPv6 flowinfo and other fixes.
